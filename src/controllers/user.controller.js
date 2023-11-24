@@ -18,7 +18,7 @@ const registerUser = asyncHandler(async (req, res) => {
     // The most of the details are from (req.body) -> json,form
 
     const { fullName, username, email, password } = req.body;
-    console.log("email :", email);
+    // console.log("email :", email); It was just to print the email for testing at initial
 
     // if (fullName === "") {
     //     throw new ApiError(400, "FullName is Required.")
@@ -34,7 +34,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
     // User.findOne(email) This is also possible to check the email but to take it to next level 
     // we go for 👇
-    const existingUser = User.findOne({
+    const existingUser = await User.findOne({
         $or: [{ username }, { email }] // To find more than one field from the DB
     })
 
@@ -44,17 +44,26 @@ const registerUser = asyncHandler(async (req, res) => {
 
     // To get the path of the image of avatar from local folder it will not be uploaded to cloudinary yet.
     const avatarLocalPath = req.files?.avatar[0]?.path; 
-    const coverimageLocalPath = req.files?.coverImage[0]?.path;
+    // const coverImageLocalPath = req.files?.coverImage[0]?.path; we are not using this bcoz we it'll cause error if we don't pass any cover to overcome this error we go with classic JS if condition.
+    
+    // console.log(req.files); to get
+
+    // This is just to check we have coverImage or not
+    let coverImageLocalPath;
+    if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
+        coverImageLocalPath = req.files.coverImage[0].path
+    }
+
 
     if (!avatarLocalPath) {
         throw new ApiError(400,"Avatar file is Required.")
     }
 
     const avatar = await uploadOnCloudinary(avatarLocalPath)
-    const coverImage = await uploadOnCloudinary(coverimageLocalPath)
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath)
 
     if (!avatar) {
-        throw new ApiError(400, "Avatar file if Required.")
+        throw new ApiError(400, "Avatar file is Required.")
     }
 
     const user = await User.create({
