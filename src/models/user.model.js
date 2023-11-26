@@ -52,16 +52,19 @@ const userSchema = new Schema(
     }
 )
 
+// To hash the password before saving the password to DB
 userSchema.pre("save", async function (next) {
     if (!this.isModified("password")) return next();
     this.password = await bcrypt.hash(this.password, 10)
     next()
 })
 
-userSchema.methods.isPasswordCorrext = async function (password) {
+// To check the entered password and saved password same or not
+userSchema.methods.isPasswordCorrect = async function (password) {
     return await bcrypt.compare(password,this.password)
 }
 
+// To generate a JWT Token and saving the details of the user
 userSchema.methods.generateAccessToken = function () {
     return Jwt.sign(
         {
@@ -76,6 +79,7 @@ userSchema.methods.generateAccessToken = function () {
         }
     )
 }
+// TOm generate a Refresh Token
 userSchema.methods.generateRefreshToken = function () {
     return Jwt.sign(
         {
