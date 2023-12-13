@@ -4,6 +4,22 @@ import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
+const generateAccessAndrefreshToken = async (userId)=> {
+    try {
+        const user = await User.findOne(userId)
+        const accessToken = user.generateAccessToken()
+        const refreshToken = user.generateRefreshToken()
+
+        user.refreshToken = refreshToken
+        await user.save({ validateBeforeSave: false })
+
+        return { accessToken, refreshToken }
+
+    } catch (error) {
+        throw new ApiError(500,"Something went wrong while generating refresh and access token")
+    }
+}
+
 const registerUser = asyncHandler(async (req, res) => {
     // Get user details from the client (Postman)
     // validation
@@ -77,7 +93,7 @@ const registerUser = asyncHandler(async (req, res) => {
     
     // .select is used to select the required field from the DB , Here twe need to remove the password and refresh tokens before deleting from the DB.
     const createdUser = await User.findById(user._id).select(
-        "-password -refreshTokens"
+        "-password -refreshToken"
     );
 
     if (!createdUser) {
@@ -89,6 +105,89 @@ const registerUser = asyncHandler(async (req, res) => {
     )
 
 });
+
+const loginUser = asyncHandler(async (req, res) => {
+    /* Get data from req.body  
+    take email and password
+    find the user
+    check the password
+    aaccess the refresh token
+    send cookie
+    */
+    const { email, username, password } = req.body;
+    
+    if (!username || !email) {
+        throw new ApiError(400, "Username or password is required.");
+    }
+
+    // User.findOne({email}) this also one case
+
+    const user = await User.findOne({
+        $or:[{username},{email}]
+    })
+
+    if (!user) {
+        throw new ApiError(404,"user Doesn't Exist")
+    }
+    
+    const isPasswordValid = await user.isPasswordCorrect(password)
+
+    if (isPasswordValid) {
+        throw new ApiError(401,"Invalid user Credentials")
+    }
+
+    const {refreshToken,accessToken} = await generateAccessAndrefreshToken(user._id) // U'll get refresh and sccess token's
+
+    /* Here we have two conditions i.e we can save directly the refresh tokens or we can make an another DB query amd store them in the DB , We need to decide which is better  */
+
+    const loggedInUser = await User.findById(_id).select("-password -refreshToken")
+
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res
+        .status(200)
+        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", refreshToken, options)
+        .json(
+            new ApiResponse(
+                200,
+                {
+                    user: loggedInUser, accessToken, refreshToken
+                },
+                "User Logged In Successfully"
+            )
+        )
+});
+
+const logoutUser = asyncHandler(async(req, res) => {
+    await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set: {
+                refreshToken: undefined
+            }
+        },
+        {
+            new: true 
+        }
+    )
+
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res
+        .status(200)
+        .clearCookie("accessToken",options)
+        .clearCookie("refreshToken",options)
+        .json(new ApiResponse(200, {},"User Logged Out"))
+})
 export {
     registerUser,
+    loginUser,
+    logoutUser,
 }
