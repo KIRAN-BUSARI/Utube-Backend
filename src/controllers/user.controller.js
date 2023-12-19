@@ -3,8 +3,9 @@ import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import jwt from "jsonwebtoken";
 
-const generateAccessAndrefreshToken = async (userId)=> {
+const generateAccessAndrefreshToken = async (userId) => {
     try {
         const user = await User.findOne(userId)
         const accessToken = user.generateAccessToken()
@@ -16,7 +17,7 @@ const generateAccessAndrefreshToken = async (userId)=> {
         return { accessToken, refreshToken }
 
     } catch (error) {
-        throw new ApiError(500,"Something went wrong while generating refresh and access token")
+        throw new ApiError(500, "Something went wrong while generating refresh and access token")
     }
 }
 
@@ -41,7 +42,7 @@ const registerUser = asyncHandler(async (req, res) => {
     // }
 
     if (
-        [fullName,email,username,password].some((field) => field?.trim() === "") // Need to know about 'some' method
+        [fullName, email, username, password].some((field) => field?.trim() === "") // Need to know about 'some' method
     ) {
         throw new ApiError(400, "All Fields are Required.")
     }
@@ -55,13 +56,13 @@ const registerUser = asyncHandler(async (req, res) => {
     })
 
     if (existingUser) {
-        throw new ApiError(409,"User with username and email Already Exists.")
+        throw new ApiError(409, "User with username and email Already Exists.")
     }
 
     // To get the path of the image of avatar from local folder it will not be uploaded to cloudinary yet.
-    const avatarLocalPath = req.files?.avatar[0]?.path; 
+    const avatarLocalPath = req.files?.avatar[0]?.path;
     // const coverImageLocalPath = req.files?.coverImage[0]?.path; we are not using this bcoz we it'll cause error if we don't pass any cover to overcome this error we go with classic JS if condition.
-    
+
     // console.log(req.files); to get
 
     // This is just to check we have coverImage or not
@@ -72,7 +73,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
 
     if (!avatarLocalPath) {
-        throw new ApiError(400,"Avatar file is Required.")
+        throw new ApiError(400, "Avatar file is Required.")
     }
 
     const avatar = await uploadOnCloudinary(avatarLocalPath)
@@ -90,21 +91,23 @@ const registerUser = asyncHandler(async (req, res) => {
         password,
         username: username.toLowerCase()
     })
-    
+
     // .select is used to select the required field from the DB , Here twe need to remove the password and refresh tokens before deleting from the DB.
     const createdUser = await User.findById(user._id).select(
         "-password -refreshToken"
     );
 
     if (!createdUser) {
-        throw new ApiError(500,"SomeThing went Wrong while registering the User.")
+        throw new ApiError(500, "SomeThing went Wrong while registering the User.")
     }
 
+    console.log(createdUser);
     return res.status(201).json(
-        new ApiResponse(200,createdUser,"User Registered Successfully.")
+        new ApiResponse(200, createdUser, "User Registered Successfully.")
     )
-
 });
+
+// LOGIN CONTROLLER :
 
 const loginUser = asyncHandler(async (req, res) => {
     /* Get data from req.body  
@@ -115,32 +118,37 @@ const loginUser = asyncHandler(async (req, res) => {
     send cookie
     */
     const { email, username, password } = req.body;
-    
-    if (!username || !email) {
-        throw new ApiError(400, "Username or password is required.");
+    console.log(email);
+
+    if (!username && !email) {
+        throw new ApiError(400, "username or email is required.");
     }
+
+    // if (!(username || email)) {
+    //     throw new ApiError(400, "Username or Password is required.");
+    // }
 
     // User.findOne({email}) this also one case
 
     const user = await User.findOne({
-        $or:[{username},{email}]
+        $or: [{ username }, { email }]
     })
 
     if (!user) {
-        throw new ApiError(404,"user Doesn't Exist")
-    }
-    
-    const isPasswordValid = await user.isPasswordCorrect(password)
-
-    if (isPasswordValid) {
-        throw new ApiError(401,"Invalid user Credentials")
+        throw new ApiError(404, "user Does not Exist")
     }
 
-    const {refreshToken,accessToken} = await generateAccessAndrefreshToken(user._id) // U'll get refresh and sccess token's
+    const isPasswordValid = await user.isPasswordCorrect(password) // Returns trur or false
+
+    if (!isPasswordValid) {
+        throw new ApiError(401, "Invalid user Credentials")
+    }
+
+    const { refreshToken, accessToken } = await generateAccessAndrefreshToken(user._id) // U'll get refresh and sccess token's
 
     /* Here we have two conditions i.e we can save directly the refresh tokens or we can make an another DB query amd store them in the DB , We need to decide which is better  */
 
-    const loggedInUser = await User.findById(_id).select("-password -refreshToken")
+    const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
 
     const options = {
         httpOnly: true,
@@ -162,7 +170,7 @@ const loginUser = asyncHandler(async (req, res) => {
         )
 });
 
-const logoutUser = asyncHandler(async(req, res) => {
+const logoutUser = asyncHandler(async (req, res) => {
     await User.findByIdAndUpdate(
         req.user._id,
         {
@@ -171,7 +179,7 @@ const logoutUser = asyncHandler(async(req, res) => {
             }
         },
         {
-            new: true 
+            new: true
         }
     )
 
@@ -182,12 +190,14 @@ const logoutUser = asyncHandler(async(req, res) => {
 
     return res
         .status(200)
-        .clearCookie("accessToken",options)
-        .clearCookie("refreshToken",options)
-        .json(new ApiResponse(200, {},"User Logged Out"))
+        .clearCookie("accessToken", options)
+        .clearCookie("refreshToken", options)
+        .json(new ApiResponse(200, {}, "User Logged Out"))
 })
+
 export {
     registerUser,
     loginUser,
     logoutUser,
+    refreshAccessToken
 }
