@@ -1,4 +1,4 @@
-import mongoose,{Schema} from "mongoose";
+import mongoose, { Schema } from "mongoose";
 import mongooseAggregatePaginate from "mongoose-aggregate-paginate-v2";
 
 const videoSchema = new Schema(
@@ -7,20 +7,20 @@ const videoSchema = new Schema(
             type: String,
             required: true,
         },
-        thumbnail:{
-            type:String,
-            required:true,
-        },
-        title:{
-            type:String,
+        thumbnail: {
+            type: String,
             required: true,
         },
-        description:{
-            type:String,
+        title: {
+            type: String,
             required: true,
         },
-        duration:{
-            type:Number,
+        description: {
+            type: String,
+            required: true,
+        },
+        duration: {
+            type: Number,
             required: true,
         },
         viwes: {

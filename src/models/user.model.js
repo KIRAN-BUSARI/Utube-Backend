@@ -34,7 +34,7 @@ const userSchema = new Schema(
         watchHistory: [
             {
                 type: Schema.Types.ObjectId, ref:
-                "Video"
+                    "Video"
             }
         ],
         password: {
@@ -61,7 +61,7 @@ userSchema.pre("save", async function (next) {
 
 // To check the entered password and saved password same or not
 userSchema.methods.isPasswordCorrect = async function (password) {
-    return await bcrypt.compare(password,this.password)
+    return await bcrypt.compare(password, this.password)
 }
 
 // To generate a JWT Token and saving the details of the user
@@ -92,4 +92,4 @@ userSchema.methods.generateRefreshToken = function () {
     );
 }
 
-export const User = mongoose.model("User",userSchema)
+export const User = mongoose.model("User", userSchema)
