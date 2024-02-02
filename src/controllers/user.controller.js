@@ -198,7 +198,7 @@ const logoutUser = asyncHandler(async (req, res) => {
 const refreshAccessToken = asyncHandler(async (req, res) => {
     const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
 
-    if (!   incomingRefreshToken) {
+    if (!incomingRefreshToken) {
         throw new ApiError(401, "unauthorized request")
     }
 
@@ -263,9 +263,15 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 })
 
 const getCurrentUser = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user?._id)
+
+    if (!user) {
+        throw new ApiError(404, "User not found")
+    }
+
     return res
         .status(200)
-        .json(200, req.user, "Current user fetched successfully.")
+        .json(new ApiResponse(200, user, "Current user fetched successfully."))
 })
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
@@ -275,7 +281,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
         throw new ApiError(400, "All fields are required")
     }
 
-    const user = User.findByIdAndUpdate(
+    const user = await User.findByIdAndUpdate(
         req.user?._id,
         {
             $set: {
@@ -283,7 +289,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
                 email
             }
         },
-        {new: true}
+        { new: true }
     ).select("-password")
 
     return res
@@ -347,6 +353,80 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, user, "Cover Image Updated Successfully"))
 })
 
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+
+    const { username } = req.params;
+
+    if (!username?.trim()) {
+        throw new ApiError(400, "Username not found")
+    }
+
+    const channel = User.aggregate([
+        {
+            $match: {// matching the username from the user DB and 
+                username: username?.toLowerCase()
+            }
+        },
+        {
+            $lookup: { // looking for the subscribers user
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "channel",
+                as: "subscribers"
+            }
+        },
+        {
+            $lookup: { // looking for the subscribed users 
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "subscriber",
+                as: "subscribedTo"
+            }
+        },
+        {
+            $addFields: { // counting the sbscribers || subscribed count
+                subscribersCount: {
+                    $size: "$subscribers"
+                },
+                channelsSubscribedToCount: {
+                    $size: "$subscribedTo"
+                },
+                isSubscribed: { // Sending { true || false } frontend to show wheather subscribe or subscribed
+                    $condition: {
+                        if: { $in: [req.user?._id, "$subscribers.subscribed"] },
+                        then: true,
+                        else: false
+                    }
+                }
+            }
+        },
+        {
+            // used to show only required values not all the values to frontend
+            $project: {
+                fullName: 1,
+                username: 1,
+                subscribersCount: 1,
+                isSubscribed: 1,
+                channelsSubscribedToCount: 1,
+                avatar: 1,
+                coverImage: 1,
+                email: 1,
+            }
+        }
+    ])
+
+    console.log(channel);
+
+    if (!channel?.length) {
+        throw new ApiError(400, "Cannel does not exists")
+    }
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, channel[0], "Channel Fetched Successfull"))
+
+})
+
 export {
     registerUser,
     loginUser,
@@ -356,5 +436,6 @@ export {
     getCurrentUser,
     updateAccountDetails,
     updateUserAvatar,
-    updateUserCoverImage
+    updateUserCoverImage,
+    getUserChannelProfile
 }
